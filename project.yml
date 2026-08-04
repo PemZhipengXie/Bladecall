@@ -1,0 +1,50 @@
+name: Jianling
+options:
+  bundleIdPrefix: com.suifeng
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "16.0"
+  groupSortPosition: top
+
+packages:
+  CompletionBell:
+    path: .
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    CODE_SIGN_STYLE: Automatic
+    CURRENT_PROJECT_VERSION: 24
+    MARKETING_VERSION: 0.5.9
+
+targets:
+  JianlingMac:
+    type: application
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: Sources/CompletionBell
+      - path: Sources/CompletionBell/Resources
+        buildPhase: resources
+    dependencies:
+      - package: CompletionBell
+        product: CompletionBellCore
+      - package: CompletionBell
+        product: JianlingShared
+      - package: CompletionBell
+        product: JianlingSync
+      - package: CompletionBell
+        product: JianlingCloudSync
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.suifeng.completion-bell
+        PRODUCT_NAME: 剑令
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""
+        INFOPLIST_FILE: Resources/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Apps/Entitlements/JianlingMac.entitlements
+
+schemes:
+  JianlingMac:
+    build:
+      targets:
+        JianlingMac: all

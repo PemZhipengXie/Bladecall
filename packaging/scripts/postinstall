@@ -1,0 +1,71 @@
+#!/bin/zsh
+set -euo pipefail
+
+LABEL="com.suifeng.completion-bell"
+APP_PATH="/Applications/剑令.app"
+LOG_DIR="/Library/Logs/Jianling"
+LOG_FILE="$LOG_DIR/install.log"
+CONSOLE_USER="$(/usr/bin/stat -f '%Su' /dev/console)"
+
+/bin/mkdir -p "$LOG_DIR"
+exec >>"$LOG_FILE" 2>&1
+echo "[$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')] postinstall started"
+
+case "$CONSOLE_USER" in
+    ""|root|loginwindow|_mbsetupuser)
+        exit 0
+        ;;
+esac
+
+USER_UID="$(/usr/bin/id -u "$CONSOLE_USER")"
+USER_HOME="$(/usr/bin/dscl . -read "/Users/$CONSOLE_USER" NFSHomeDirectory 2>/dev/null | /usr/bin/awk '{print $2}')"
+if [[ -z "$USER_HOME" ]]; then
+    USER_HOME="/Users/$CONSOLE_USER"
+fi
+
+LAUNCH_AGENT_DIR="$USER_HOME/Library/LaunchAgents"
+LAUNCH_AGENT="$LAUNCH_AGENT_DIR/$LABEL.plist"
+
+# Internal preview builds are not notarized yet. Files copied from a downloaded
+# DMG can otherwise keep Gatekeeper quarantine even after Installer reports a
+# successful install, leaving a menu-bar app looking like it did nothing.
+/usr/bin/xattr -dr com.apple.quarantine "$APP_PATH" 2>/dev/null || true
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
+    -f "$APP_PATH" 2>/dev/null || true
+
+/bin/mkdir -p "$LAUNCH_AGENT_DIR"
+/bin/rm -f "$LAUNCH_AGENT"
+/usr/bin/plutil -create xml1 "$LAUNCH_AGENT"
+/usr/libexec/PlistBuddy -c "Add :Label string $LABEL" "$LAUNCH_AGENT"
+/usr/libexec/PlistBuddy -c "Add :ProgramArguments array" "$LAUNCH_AGENT"
+/usr/libexec/PlistBuddy -c "Add :ProgramArguments:0 string /usr/bin/open" "$LAUNCH_AGENT"
+/usr/libexec/PlistBuddy -c "Add :ProgramArguments:1 string $APP_PATH" "$LAUNCH_AGENT"
+/usr/libexec/PlistBuddy -c "Add :RunAtLoad bool true" "$LAUNCH_AGENT"
+/usr/libexec/PlistBuddy -c "Add :ProcessType string Interactive" "$LAUNCH_AGENT"
+/usr/libexec/PlistBuddy -c "Add :LimitLoadToSessionType string Aqua" "$LAUNCH_AGENT"
+/usr/sbin/chown "$CONSOLE_USER":staff "$LAUNCH_AGENT"
+/bin/chmod 644 "$LAUNCH_AGENT"
+
+# Remove the former per-user app copy so only the installed application remains.
+/bin/rm -rf "$USER_HOME/Applications/剑令.app" "$USER_HOME/Applications/完成铃.app"
+
+/bin/launchctl bootout "gui/$USER_UID/$LABEL" 2>/dev/null || true
+/bin/launchctl bootstrap "gui/$USER_UID" "$LAUNCH_AGENT" 2>/dev/null || true
+/bin/launchctl kickstart -k "gui/$USER_UID/$LABEL" 2>/dev/null || true
+
+# launchctl bootstrap from an Installer script can be denied access to the
+# logged-in Aqua session. Open once in that user's context as a deterministic
+# first-launch fallback.
+/bin/launchctl asuser "$USER_UID" \
+    /usr/bin/sudo -u "$CONSOLE_USER" /usr/bin/open "$APP_PATH" 2>/dev/null || true
+
+for _ in {1..20}; do
+    if /usr/bin/pgrep -u "$USER_UID" -x CompletionBell >/dev/null 2>&1; then
+        echo "[$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')] first launch verified"
+        exit 0
+    fi
+    /bin/sleep 0.5
+done
+
+echo "[$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')] first launch failed"
+exit 1

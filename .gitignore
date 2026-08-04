@@ -1,0 +1,36 @@
+# macOS
+.DS_Store
+
+# Swift Package Manager 构建产物
+.build/
+.build-arm64/
+.build-x86_64/
+
+# 打包输出
+dist/
+
+# XcodeGen 生成的工程（由 project.yml 生成，运行 scripts/generate-xcode-project.sh 重建）
+Jianling.xcodeproj/
+
+# Xcode 用户状态
+xcuserdata/
+*.xcuserstate
+
+# 运行时生成的日报（本地数据，非源码）
+日报/
+
+# 内部产品/过程文档（需求、方案、品牌规范、验收与性能记录），只留在本地
+docs/*.md
+
+# 宣传片文案等营销素材，只留在本地
+05_scripts/
+
+# README 配图的本地校对稿
+assets/readme/_*.png
+
+# 本地演示素材与设计稿（体量大，不入库）
+videos/
+design-demos/
+
+# Claude Code 本地配置
+.claude/settings.local.json

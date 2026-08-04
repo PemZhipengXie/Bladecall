@@ -1,0 +1,7 @@
+#!/bin/zsh
+set -euo pipefail
+
+# Stop an older copy before Installer replaces the application bundle.
+/usr/bin/pkill -x CompletionBell 2>/dev/null || true
+
+exit 0

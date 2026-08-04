@@ -1,0 +1,4 @@
+"CFBundleDisplayName" = "Bladecall";
+"CFBundleName" = "Bladecall";
+"NSLocalNetworkUsageDescription" = "Bladecall connects to your iPhone on the same Wi-Fi and syncs task state and actions only. Message content is never read.";
+

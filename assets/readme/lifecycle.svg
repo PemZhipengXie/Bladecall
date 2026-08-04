@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="470" viewBox="0 0 1200 470" role="img" aria-labelledby="t d">
+  <title id="t">The command loop: dispatch, run, return, close</title>
+  <desc id="d">Bladecall manages attention, not notifications. Each task walks one clear loop: you dispatch, the AI runs, the result returns as a quiet unread signal, and you close it. You stay in command; AI does the work.</desc>
+  <defs>
+    <pattern id="g2" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#D9CBAA" stroke-width="1" opacity="0.30"/>
+    </pattern>
+  </defs>
+
+  <rect x="1" y="1" width="1198" height="468" rx="24" fill="#F7ECD1" stroke="#211914" stroke-width="2"/>
+  <rect x="1" y="1" width="1198" height="468" rx="24" fill="url(#g2)"/>
+
+  <!-- heading -->
+  <text x="600" y="60" text-anchor="middle" fill="#211914" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, sans-serif" font-size="30" font-weight="800">It manages attention, not notifications</text>
+  <text x="600" y="96" text-anchor="middle" fill="#9D282B" font-family="Songti SC, STSong, serif" font-size="23" letter-spacing="1">管理注意力，不是制造提醒</text>
+
+  <!-- stages -->
+  <!-- x centers: 190, 460, 730, 1000 -->
+  <g font-family="-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, sans-serif">
+    <!-- arrows -->
+    <g stroke="#211914" stroke-width="2.5" opacity="0.34" fill="none" stroke-linecap="round">
+      <path d="M300 210 L350 210" marker-end="url(#ar)"/>
+      <path d="M570 210 L620 210" marker-end="url(#ar)"/>
+      <path d="M840 210 L890 210" marker-end="url(#ar)"/>
+    </g>
+    <defs>
+      <marker id="ar" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M0 0L10 5L0 10Z" fill="#211914" opacity="0.5"/>
+      </marker>
+    </defs>
+
+    <!-- 1 发令 -->
+    <g transform="translate(130 150)">
+      <rect x="20" y="0" width="80" height="80" rx="20" fill="#A43135"/>
+      <text x="60" y="54" text-anchor="middle" fill="#FFF8E8" font-family="Songti SC, STSong, serif" font-size="38">令</text>
+      <text x="60" y="120" text-anchor="middle" fill="#6C584A" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" font-weight="700" letter-spacing="1">DISPATCH</text>
+      <text x="60" y="150" text-anchor="middle" fill="#211914" font-size="22" font-weight="750">发令</text>
+      <text x="60" y="184" text-anchor="middle" fill="#6C584A" font-size="15">You send work from</text>
+      <text x="60" y="206" text-anchor="middle" fill="#6C584A" font-size="15">the tool you already use.</text>
+    </g>
+
+    <!-- 2 行剑 -->
+    <g transform="translate(400 150)">
+      <rect x="20" y="0" width="80" height="80" rx="20" fill="#DF8A26"/>
+      <text x="60" y="54" text-anchor="middle" fill="#FFF8E8" font-family="Songti SC, STSong, serif" font-size="38">剑</text>
+      <text x="60" y="120" text-anchor="middle" fill="#6C584A" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" font-weight="700" letter-spacing="1">IN PROGRESS</text>
+      <text x="60" y="150" text-anchor="middle" fill="#211914" font-size="22" font-weight="750">行剑</text>
+      <text x="60" y="184" text-anchor="middle" fill="#6C584A" font-size="15">Each AI keeps working</text>
+      <text x="60" y="206" text-anchor="middle" fill="#6C584A" font-size="15">in its own runtime.</text>
+    </g>
+
+    <!-- 3 复命 -->
+    <g transform="translate(670 150)">
+      <rect x="20" y="0" width="80" height="80" rx="20" fill="#3979DA"/>
+      <text x="60" y="54" text-anchor="middle" fill="#FFF8E8" font-family="Songti SC, STSong, serif" font-size="38">复</text>
+      <text x="60" y="120" text-anchor="middle" fill="#6C584A" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" font-weight="700" letter-spacing="1">READY</text>
+      <text x="60" y="150" text-anchor="middle" fill="#211914" font-size="22" font-weight="750">复命</text>
+      <text x="60" y="184" text-anchor="middle" fill="#6C584A" font-size="15">A finished result waits</text>
+      <text x="60" y="206" text-anchor="middle" fill="#6C584A" font-size="15">as a quiet unread mark.</text>
+    </g>
+
+    <!-- 4 归鞘 -->
+    <g transform="translate(940 150)">
+      <rect x="20" y="0" width="80" height="80" rx="20" fill="#299963"/>
+      <text x="60" y="54" text-anchor="middle" fill="#FFF8E8" font-family="Songti SC, STSong, serif" font-size="38">鞘</text>
+      <text x="60" y="120" text-anchor="middle" fill="#6C584A" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" font-weight="700" letter-spacing="1">DONE</text>
+      <text x="60" y="150" text-anchor="middle" fill="#211914" font-size="22" font-weight="750">归鞘</text>
+      <text x="60" y="184" text-anchor="middle" fill="#6C584A" font-size="15">You decide when it is</text>
+      <text x="60" y="206" text-anchor="middle" fill="#6C584A" font-size="15">seen and when it is done.</text>
+    </g>
+  </g>
+
+  <!-- footer motto -->
+  <line x1="360" y1="404" x2="840" y2="404" stroke="#D9CBAA" stroke-width="1.5"/>
+  <text x="600" y="440" text-anchor="middle" fill="#9D282B" font-family="Songti SC, STSong, serif" font-size="24" letter-spacing="3">人掌令，AI 行剑</text>
+</svg>
