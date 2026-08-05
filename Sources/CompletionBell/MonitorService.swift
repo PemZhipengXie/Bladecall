@@ -62,16 +62,23 @@ final class MonitorService {
 
             let timer = DispatchSource.makeTimerSource(queue: self.queue)
             let interval: Double
-            if self.fileMonitor != nil {
+            if let scheduler = self.scheduler {
                 // Event-driven mode: the timer is only the low-frequency
-                // reconcile backstop for lost or coalesced file events.
-                interval = 5 * 60
+                // reconcile backstop for lost or coalesced file events. Each
+                // tick hands out at most one adapter's staggered turn, so the
+                // backstop never pays a whole-fleet scan in a single tick.
+                interval = scheduler.reconcileTickInterval
                 timer.schedule(deadline: .now() + interval, repeating: interval, leeway: .seconds(5))
                 timer.setEventHandler { [weak self] in
-                    guard let self else { return }
-                    if self.scheduler?.reconcileDue(at: Date()) ?? true {
-                        self.scan(only: nil, trigger: .reconcile)
+                    guard let self, let scheduler = self.scheduler else { return }
+                    let due = scheduler.takeReconcileDue(at: Date())
+                    guard !due.isEmpty else { return }
+                    // The turn's scan is a full discovery for these adapters,
+                    // so their accumulated event changes are superseded.
+                    for index in due {
+                        self.pendingChanges.removeValue(forKey: index)
                     }
+                    self.scan(only: due, trigger: .reconcile)
                 }
             } else {
                 interval = 5
@@ -231,7 +238,10 @@ final class MonitorService {
             errors.append(contentsOf: result.errors.map { "\(result.tool.rawValue): \($0)" })
         }
         if only == nil {
-            scheduler?.noteFullScan(at: Date())
+            // Stamp coverage at scan start: the results reflect the tree as
+            // of `started`, and end-stamping would let scan duration silently
+            // stretch the reconcile cadence past its interval.
+            scheduler?.noteFullScan(at: started)
             pendingChanges.removeAll()
         }
         let duration = Date().timeIntervalSince(started)
@@ -269,7 +279,11 @@ final class MonitorService {
             AppLogger.shared.write("parse_errors", fields: ["count": errors.count, "sample": Array(errors.prefix(3))])
         }
         lastLoggedParseErrors = errors
-        if scanCount == 1 || scanCount % 12 == 0 || trigger == .reconcile {
+        // The rotating backstop reconciles one adapter per tick; logging only
+        // adapter 0's turn keeps idle health-log volume at the cadence of the
+        // old whole-fleet reconcile.
+        let reconcileHealthDue = trigger == .reconcile && (only?.contains(0) ?? true)
+        if scanCount == 1 || scanCount % 12 == 0 || reconcileHealthDue {
             let grouped = Dictionary(grouping: sessions, by: { $0.tool.rawValue }).mapValues(\.count)
             let running = Dictionary(
                 grouping: sessions.filter { $0.status == .running },

@@ -315,6 +315,56 @@ public enum DailyReportLanguage: String, Codable, Hashable {
     case english
 }
 
+/// Answers whether an on-disk report still carries the current HTML template
+/// without reading whole documents: the `jianling-report-template` meta tag
+/// sits within the first few hundred bytes of `<head>`, so probing a 4 KB
+/// prefix is enough, and verdicts are cached per (path, mtime, size) so the
+/// once-a-minute report sweep never re-reads unchanged files.
+public final class DailyReportTemplateProbe: @unchecked Sendable {
+    private struct Verdict {
+        let modificationDate: Date
+        let size: Int
+        let needsUpgrade: Bool
+    }
+
+    private let prefixLength: Int
+    private let lock = NSLock()
+    private var verdicts: [String: Verdict] = [:]
+
+    public init(prefixLength: Int = 4096) {
+        self.prefixLength = prefixLength
+    }
+
+    /// True when the file is missing, unreadable, or does not carry the
+    /// current template marker within the probe prefix.
+    public func needsUpgrade(at url: URL) -> Bool {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let modificationDate = attributes[.modificationDate] as? Date,
+              let size = (attributes[.size] as? NSNumber)?.intValue else {
+            return true
+        }
+        lock.lock()
+        defer { lock.unlock() }
+        if let cached = verdicts[url.path],
+           cached.modificationDate == modificationDate,
+           cached.size == size {
+            return cached.needsUpgrade
+        }
+        let needsUpgrade = !Self.prefixCarriesCurrentTemplate(at: url, prefixLength: prefixLength)
+        verdicts[url.path] = Verdict(modificationDate: modificationDate, size: size, needsUpgrade: needsUpgrade)
+        return needsUpgrade
+    }
+
+    private static func prefixCarriesCurrentTemplate(at url: URL, prefixLength: Int) -> Bool {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
+        defer { try? handle.close() }
+        guard let data = try? handle.read(upToCount: prefixLength), !data.isEmpty else { return false }
+        // The marker is pure ASCII; a multi-byte character cut at the prefix
+        // boundary decodes lossily without affecting the match.
+        return DailyReportGenerator.isCurrentHTMLTemplate(String(decoding: data, as: UTF8.self))
+    }
+}
+
 public struct DailyReportGenerator {
     public init() {}
 
