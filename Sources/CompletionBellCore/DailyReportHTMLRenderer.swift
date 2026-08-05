@@ -439,6 +439,9 @@ struct DailyReportHTMLRenderer {
         case .codex: return Self.codexLogo
         case .newMax: return Self.newMaxLogo
         case .workBuddy: return Self.workBuddyLogo
+        // Push-reported runtimes have no bundled artwork; the seal marks
+        // "arrived through Bladecall's own drop protocol".
+        case .external: return Self.sealLogo
         }
     }
 

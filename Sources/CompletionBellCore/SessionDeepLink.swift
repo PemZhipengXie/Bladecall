@@ -26,6 +26,10 @@ public enum SessionDeepLink {
             components.scheme = "workbuddy"
             components.host = "chat"
             components.path = "/\(session.sessionID)"
+        case .external:
+            // Self-reported sessions carry no verified route back to a host
+            // app; inventing one would violate the deep-link honesty rule.
+            return nil
         }
         return components.url
     }

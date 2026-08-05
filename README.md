@@ -73,6 +73,16 @@ Most multi-agent workflows still make the human poll every window. Bladecall rev
 
 Bladecall never labels an app "monitored" until it has a reliable local event source — no screenshot scraping and no browser automation are used to infer completion.
 
+### Integrate any agent in one line
+
+Any agent that can write a file can report itself into the inbox — no adapter, no SDK:
+
+```bash
+mkdir -p ~/.jianling/drops/myagent && printf '{"schemaVersion":1,"title":"Build the report","status":"done","timestamp":"%s"}' "$(date -u +%FT%TZ)" > ~/.jianling/drops/myagent/task-42.json
+```
+
+Self-reported sessions surface under an honest **self-report** tier, clearly distinct from natively monitored runtimes. Full protocol, CLI, and hook examples: [docs/INTEGRATING.md](./docs/INTEGRATING.md) — and if you want native watched support for your tool, the same doc states the adapter bar. PRs welcome.
+
 <details>
 <summary>How each completion signal is read</summary>
 

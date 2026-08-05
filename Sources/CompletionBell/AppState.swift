@@ -857,6 +857,10 @@ final class AppState: ObservableObject {
         case .codex: tool = .codex
         case .newMax: tool = .newMax
         case .workBuddy: tool = .workBuddy
+        // The mobile model is a closed five-tool enum; shipping an unknown
+        // case would break the paired app's decoder. Push-reported sessions
+        // stay Mac-only until the shared schema learns about them.
+        case .external: return nil
         }
         let origin = JianlingTaskOrigin(rawValue: session.origin.rawValue) ?? .detached
         let projectName = session.projectPath.flatMap { path in

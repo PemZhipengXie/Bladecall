@@ -6,6 +6,10 @@ public enum ToolKind: String, Codable, CaseIterable, Hashable {
     case codex
     case newMax
     case workBuddy
+    /// Self-reported sessions delivered through the push drop protocol
+    /// (`~/.jianling/drops`). The concrete tool identity lives in
+    /// `SessionSnapshot.externalTool`, because any agent may report.
+    case external
 
     public var displayName: String {
         switch self {
@@ -14,6 +18,7 @@ public enum ToolKind: String, Codable, CaseIterable, Hashable {
         case .codex: return "Codex"
         case .newMax: return "NewMax"
         case .workBuddy: return "WorkBuddy"
+        case .external: return "External"
         }
     }
 
@@ -24,6 +29,8 @@ public enum ToolKind: String, Codable, CaseIterable, Hashable {
         case .codex: return "com.openai.codex"
         case .newMax: return "cc.newmax.desktop"
         case .workBuddy: return "com.workbuddy.workbuddy"
+        // No host app to activate: drops arrive from arbitrary runtimes.
+        case .external: return ""
         }
     }
 }
@@ -143,6 +150,9 @@ public struct SessionSnapshot: Identifiable, Codable, Hashable {
     public let isHostVisible: Bool
     public let turnStartedAt: Date?
     public let turnCompletedAt: Date?
+    /// Slug of the self-reporting runtime for `.external` sessions
+    /// (e.g. "hermes"). `nil` for natively watched tools.
+    public let externalTool: String?
 
     public init(
         tool: ToolKind,
@@ -157,7 +167,8 @@ public struct SessionSnapshot: Identifiable, Codable, Hashable {
         origin: SessionOrigin = .interactive,
         isHostVisible: Bool = true,
         turnStartedAt: Date? = nil,
-        turnCompletedAt: Date? = nil
+        turnCompletedAt: Date? = nil,
+        externalTool: String? = nil
     ) {
         self.id = "\(tool.rawValue):\(sessionID)"
         self.tool = tool
@@ -173,6 +184,7 @@ public struct SessionSnapshot: Identifiable, Codable, Hashable {
         self.isHostVisible = isHostVisible
         self.turnStartedAt = turnStartedAt
         self.turnCompletedAt = turnCompletedAt
+        self.externalTool = externalTool
     }
 
 
@@ -181,6 +193,15 @@ public struct SessionSnapshot: Identifiable, Codable, Hashable {
     public var isBackground: Bool {
         guard !isRoutine else { return false }
         return origin.isBackground || !isHostVisible
+    }
+
+    /// Name to show for this session's runtime: the self-reported slug for
+    /// push sessions, the built-in name otherwise. Capitalizes bare slugs so
+    /// "hermes" reads as "Hermes" when no catalog entry refines it.
+    public var toolDisplayName: String {
+        guard tool == .external else { return tool.displayName }
+        guard let slug = externalTool, !slug.isEmpty else { return tool.displayName }
+        return slug.prefix(1).uppercased() + slug.dropFirst()
     }
 }
 

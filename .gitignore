@@ -21,6 +21,7 @@ xcuserdata/
 
 # 内部产品/过程文档（需求、方案、品牌规范、验收与性能记录），只留在本地
 docs/*.md
+!docs/INTEGRATING.md
 
 # 宣传片文案等营销素材，只留在本地
 05_scripts/
