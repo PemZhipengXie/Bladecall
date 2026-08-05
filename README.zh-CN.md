@@ -73,6 +73,16 @@
 
 只有具备可靠本地事件源，剑令才会把一个工具标为「正在守护」——完成判断不依赖截图识别，也不依赖浏览器自动操作。
 
+### 任何 agent 一行接入
+
+会写文件的 agent 就能自报进收件箱——不需要适配器、不需要 SDK：
+
+```bash
+mkdir -p ~/.jianling/drops/myagent && printf '{"schemaVersion":1,"title":"生成报表","status":"done","timestamp":"%s"}' "$(date -u +%FT%TZ)" > ~/.jianling/drops/myagent/task-42.json
+```
+
+自报会话以明确的「**自报**」档位呈现，与「正在守护」严格区分。完整协议、CLI 与 hook 示例见 [docs/INTEGRATING.md](./docs/INTEGRATING.md)；想为你的工具争取原生守护，同一份文档写明了适配器门槛，欢迎提 PR。
+
 <details>
 <summary>每个工具的完成判断口径</summary>
 

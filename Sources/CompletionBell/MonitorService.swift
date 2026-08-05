@@ -45,7 +45,7 @@ final class MonitorService {
     private var latestScanDuration: TimeInterval = 0
     private let forceLegacyPolling = ProcessInfo.processInfo.environment["JIANLING_SCAN_MODE"] == "legacy"
 
-    init(adapters: [SessionAdapter] = [CraftAdapter(), ClaudeCodeAdapter(), CodexAdapter(), NewMaxAdapter(), WorkBuddyAdapter()]) {
+    init(adapters: [SessionAdapter] = [CraftAdapter(), ClaudeCodeAdapter(), CodexAdapter(), NewMaxAdapter(), WorkBuddyAdapter(), PushDropAdapter()]) {
         self.adapters = adapters
         self.lastResults = Array(repeating: nil, count: adapters.count)
     }

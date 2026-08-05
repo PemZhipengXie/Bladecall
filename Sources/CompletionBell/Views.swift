@@ -704,7 +704,7 @@ private struct SessionRow: View {
             Button { state.open(session) } label: {
                 HStack(spacing: 10) {
                     ZStack(alignment: .topTrailing) {
-                        RuntimeLogo(assetName: toolAsset(session.tool), size: 30, appearance: state.appearance)
+                        RuntimeLogo(assetName: toolAsset(session), size: 30, appearance: state.appearance)
                         if attention == .unread {
                             UnreadPin(color: palette.unread, motionEnabled: state.motionEnabled)
                                 .offset(x: 3, y: -3)
@@ -720,6 +720,12 @@ private struct SessionRow: View {
                                 weight: attention == .unread ? .semibold : .medium
                             )
                         HStack(spacing: 4) {
+                            if session.tool == .external {
+                                // Honesty tier: this row is the agent's own
+                                // claim, not a natively watched signal.
+                                Text("\(session.toolDisplayName) · \(state.text("自报", "self-report"))")
+                                Text("·")
+                            }
                             Text(relative(session.lastActivity, language: state.language))
                             Text("·")
                             Circle().fill(statusColor).frame(width: 6, height: 6)
@@ -987,12 +993,16 @@ private func relative(_ date: Date, language: JianlingLanguage) -> String {
     return formatter.localizedString(for: date, relativeTo: Date())
 }
 
-private func toolAsset(_ tool: ToolKind) -> String {
-    switch tool {
+private func toolAsset(_ session: SessionSnapshot) -> String {
+    switch session.tool {
     case .craft: return "craft.png"
     case .claudeCode: return "claude.png"
     case .codex: return "codex.png"
     case .newMax: return "newmax.png"
     case .workBuddy: return "workbuddy.svg"
+    case .external:
+        // Known slugs hit the bundled runtime artwork (hermes.png, …);
+        // unknown ones fall through to RuntimeLogo's terminal placeholder.
+        return "\(session.externalTool ?? "external").png"
     }
 }

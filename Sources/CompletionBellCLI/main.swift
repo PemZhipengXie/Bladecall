@@ -11,14 +11,15 @@ case "doctor":
         ("claudeCode", home.appendingPathComponent(".claude/projects")),
         ("codex", home.appendingPathComponent(".codex/sessions")),
         ("newMax", home.appendingPathComponent(".newmax/conversations")),
-        ("workBuddy", home.appendingPathComponent(".workbuddy/projects"))
+        ("workBuddy", home.appendingPathComponent(".workbuddy/projects")),
+        ("external(drops)", home.appendingPathComponent(".jianling/drops"))
     ]
     for (name, url) in roots {
         print("\(name)\t\(FileManager.default.fileExists(atPath: url.path) ? "ready" : "missing")")
     }
 
 case "scan":
-    let adapters: [SessionAdapter] = [CraftAdapter(), ClaudeCodeAdapter(), CodexAdapter(), NewMaxAdapter(), WorkBuddyAdapter()]
+    let adapters: [SessionAdapter] = [CraftAdapter(), ClaudeCodeAdapter(), CodexAdapter(), NewMaxAdapter(), WorkBuddyAdapter(), PushDropAdapter()]
     for adapter in adapters {
         let started = Date()
         let result = adapter.scan(now: started)
@@ -160,7 +161,56 @@ case "report", "report-en":
     ).write(to: htmlURL, atomically: true, encoding: .utf8)
     print(htmlURL.path)
 
+case "task":
+    // The official pen for the push drop protocol: any agent (or shell hook)
+    // reports a task with one command, and Bladecall's inbox picks it up.
+    //   completion-bell-cli task --tool hermes --session abc123 \
+    //     --status done --title "Refactor login" [--project /path] [--origin scheduled]
+    var options: [String: String] = [:]
+    var argIndex = 2
+    let arguments = CommandLine.arguments
+    while argIndex + 1 < arguments.count {
+        let key = arguments[argIndex]
+        guard key.hasPrefix("--") else { argIndex += 1; continue }
+        options[String(key.dropFirst(2))] = arguments[argIndex + 1]
+        argIndex += 2
+    }
+    guard let rawTool = options["tool"], let slug = PushDropAdapter.sanitizedSlug(rawTool) else {
+        fputs("task: --tool is required (lowercase letters, digits, - _ .)\n", stderr)
+        exit(2)
+    }
+    guard let rawStatus = options["status"]?.lowercased(),
+          PushDropAdapter.allowedStatuses.contains(rawStatus) else {
+        fputs("task: --status must be one of \(PushDropAdapter.allowedStatuses.sorted().joined(separator: "|"))\n", stderr)
+        exit(2)
+    }
+    guard let rawSession = options["session"], !rawSession.isEmpty else {
+        fputs("task: --session is required\n", stderr)
+        exit(2)
+    }
+    let fileID = String(rawSession.map { character in
+        character.isLetter || character.isNumber || character == "-" || character == "_" || character == "." ? character : "-"
+    }).prefix(120)
+    let root = options["root"].map { URL(fileURLWithPath: $0) } ?? PushDropAdapter.defaultRoot
+    let dropDirectory = root.appendingPathComponent(slug, isDirectory: true)
+    try FileManager.default.createDirectory(at: dropDirectory, withIntermediateDirectories: true)
+    let iso = ISO8601DateFormatter()
+    var payload: [String: Any] = [
+        "schemaVersion": 1,
+        "tool": slug,
+        "sessionID": String(fileID),
+        "status": rawStatus,
+        "timestamp": iso.string(from: Date())
+    ]
+    if let title = options["title"], !title.isEmpty { payload["title"] = title }
+    if let project = options["project"], !project.isEmpty { payload["projectPath"] = project }
+    if let origin = options["origin"], !origin.isEmpty { payload["origin"] = origin }
+    let dropURL = dropDirectory.appendingPathComponent("\(fileID).json")
+    let dropData = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
+    try dropData.write(to: dropURL, options: .atomic)
+    print(dropURL.path)
+
 default:
-    fputs("Usage: completion-bell-cli [doctor|scan|simulate|benchmark|idle-bench|running|classify|report|report-en]\n", stderr)
+    fputs("Usage: completion-bell-cli [doctor|scan|simulate|benchmark|idle-bench|running|classify|report|report-en|task]\n", stderr)
     exit(2)
 }

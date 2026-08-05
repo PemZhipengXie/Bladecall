@@ -3174,6 +3174,79 @@ let tests: [(String, () throws -> Void)] = [
         try expect(geometry.collapsedRect.width == geometry.notchRect.width + two * 2, "Both slots share the wider width")
         try expect(abs(geometry.collapsedRect.midX - geometry.notchRect.midX) < 0.01, "The wider strip must stay centred on the notch")
         try expect(geometry.hostFrame.width >= geometry.collapsedRect.width + NotchGeometryResolver.compactTopFlareRadius * 2, "The host frame must also cover the flare wings")
+    }),
+    ("Push drop mapping is honest about statuses, origins and fingerprints", {
+        let modified = Date(timeIntervalSince1970: 1_754_000_000)
+        func map(_ object: [String: Any], fileID: String = "abc123") -> (snapshot: SessionSnapshot?, error: String?) {
+            PushDropAdapter.snapshot(slug: "hermes", fileID: fileID, object: object, fileModified: modified, sourceFile: "/tmp/drop.json")
+        }
+        let started = try unwrap(map(["status": "started", "title": "重构登录", "timestamp": "2026-08-04T10:00:00Z"]).snapshot, "started maps")
+        try expect(started.status == .running && started.completionFingerprint == nil, "started must be running without a fingerprint")
+        try expect(started.turnStartedAt != nil, "started carries the turn start")
+        try expect(started.id == "external:hermes/abc123" && started.externalTool == "hermes", "Identity comes from the path, not the payload")
+        try expect(started.toolDisplayName == "Hermes", "Bare slugs read capitalized")
+
+        let progress = try unwrap(map(["status": "progress"]).snapshot, "progress maps")
+        try expect(progress.status == .running && progress.completionFingerprint == nil, "progress stays running")
+        try expect(progress.title == "abc123", "Missing title falls back to the file identity")
+
+        let done = try unwrap(map(["status": "done", "timestamp": "2026-08-04T11:00:00Z"]).snapshot, "done maps")
+        try expect(done.status == .completed, "done completes")
+        let fingerprint = try unwrap(done.completionFingerprint, "done mints a fingerprint")
+        try expect(fingerprint.contains("2026-08-04T11:00:00Z"), "The explicit timestamp seeds the fingerprint")
+        let rewritten = try unwrap(PushDropAdapter.snapshot(slug: "hermes", fileID: "abc123", object: ["status": "done", "timestamp": "2026-08-04T11:00:00Z"], fileModified: modified.addingTimeInterval(600), sourceFile: "/tmp/drop.json").snapshot, "rewrite maps")
+        try expect(rewritten.completionFingerprint == fingerprint, "Rewriting an identical done must not mint a fresh completion")
+
+        let failed = try unwrap(map(["status": "failed", "timestamp": "2026-08-04T11:00:00Z"]).snapshot, "failed maps")
+        try expect(failed.status == .completed && failed.completionFingerprint != fingerprint, "A reported failure is a distinct report-back")
+
+        let routine = try unwrap(map(["status": "done", "origin": "scheduled"]).snapshot, "scheduled maps")
+        try expect(routine.isRoutine, "Scheduled drops land in the routine inbox")
+        let sub = try unwrap(map(["status": "started", "origin": "subagent"]).snapshot, "subagent maps")
+        try expect(sub.isBackground, "Subagent drops fold into the background tier")
+
+        try expect(map(["status": "finished"]).snapshot == nil, "Unknown statuses are rejected, not guessed")
+        try expect(PushDropAdapter.sanitizedSlug("Hermes") == "hermes", "Slugs normalize to lowercase")
+        try expect(PushDropAdapter.sanitizedSlug("../evil") == nil, "Path smuggling slugs are rejected")
+        try expect(PushDropAdapter.sanitizedSlug("a b") == nil && PushDropAdapter.sanitizedSlug("") == nil, "Whitespace and empty slugs are rejected")
+    }),
+    ("Push drop scan isolates bad drops and detects completions once", {
+        try withTempDirectory { root in
+            let hermes = root.appendingPathComponent("hermes", isDirectory: true)
+            let cursor = root.appendingPathComponent("cursor", isDirectory: true)
+            try FileManager.default.createDirectory(at: hermes, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: cursor, withIntermediateDirectories: true)
+            try Data("{\"status\":\"done\",\"title\":\"迁移脚本\",\"timestamp\":\"2026-08-04T11:00:00Z\"}".utf8)
+                .write(to: hermes.appendingPathComponent("t1.json"))
+            try Data("not json at all".utf8)
+                .write(to: hermes.appendingPathComponent("bad.json"))
+            try Data("{\"status\":\"started\",\"timestamp\":\"2026-08-04T11:05:00Z\"}".utf8)
+                .write(to: cursor.appendingPathComponent("t2.json"))
+            try Data("{\"status\":\"done\"}".utf8)
+                .write(to: root.appendingPathComponent("loose.json"))
+
+            let adapter = PushDropAdapter(root: root)
+            let now = Date(timeIntervalSince1970: 1_754_100_000)
+            let result = adapter.scan(now: now)
+            try expect(result.tool == .external, "Scan reports the external tool")
+            try expect(result.sessions.count == 2, "Two valid drops survive, got \(result.sessions.count)")
+            try expect(result.errors.count == 2, "The garbage drop and the loose drop are isolated as errors, got \(result.errors)")
+            let doneSession = try unwrap(result.sessions.first { $0.sessionID == "hermes/t1" }, "hermes drop present")
+            try expect(doneSession.status == .completed && doneSession.externalTool == "hermes", "Path decides identity")
+
+            // First sight builds history; flipping the cursor drop to done later
+            // must ring exactly once even across repeated scans.
+            let detector = CompletionDetector()
+            try expect(detector.process(result.sessions, at: now).isEmpty, "First scan only builds the baseline")
+            try Data("{\"status\":\"done\",\"timestamp\":\"2026-08-04T11:10:00Z\"}".utf8)
+                .write(to: cursor.appendingPathComponent("t2.json"))
+            adapter.invalidateCache()
+            let second = adapter.scan(now: now.addingTimeInterval(60))
+            let events = detector.process(second.sessions, at: now.addingTimeInterval(60))
+            try expect(events.count == 1 && events[0].session.sessionID == "cursor/t2", "The cursor completion rings once")
+            let third = detector.process(adapter.scan(now: now.addingTimeInterval(120)).sessions, at: now.addingTimeInterval(120))
+            try expect(third.isEmpty, "Re-scanning the same done drop stays silent")
+        }
     })
 ]
 

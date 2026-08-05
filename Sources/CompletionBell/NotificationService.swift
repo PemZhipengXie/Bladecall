@@ -50,7 +50,7 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
     func sendCompletion(_ event: CompletionEvent, playSound: Bool, language: JianlingLanguage) {
         let content = UNMutableNotificationContent()
         content.title = event.session.title
-        content.subtitle = event.session.tool.displayName
+        content.subtitle = event.session.toolDisplayName
         content.body = language.text("AI 已复命，等你有空再看。", "Your AI result is ready whenever you are.")
         content.sound = playSound ? .default : nil
         content.userInfo = [
@@ -63,7 +63,7 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
 
     func sendSummary(_ events: [CompletionEvent], language: JianlingLanguage) {
         guard !events.isEmpty else { return }
-        let tools = Set(events.map { $0.session.tool.displayName }).sorted().joined(separator: "、")
+        let tools = Set(events.map { $0.session.toolDisplayName }).sorted().joined(separator: "、")
         let content = UNMutableNotificationContent()
         content.title = language.text("\(events.count) 个 AI 回合已完成", "\(events.count) AI turns are ready")
         content.subtitle = tools
