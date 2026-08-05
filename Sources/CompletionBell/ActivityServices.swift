@@ -107,6 +107,7 @@ final class DailyReportService: @unchecked Sendable {
     private let store: ActivityLogStore
     private let reportsDirectory: URL
     private let generator = DailyReportGenerator()
+    private let templateProbe = DailyReportTemplateProbe()
     private let calendar: Calendar
     private let generationQueue = DispatchQueue(label: "completion-bell.daily-report", qos: .utility)
 
@@ -148,8 +149,7 @@ final class DailyReportService: @unchecked Sendable {
     }
 
     private func needsHTMLTemplateUpgrade(at url: URL) -> Bool {
-        guard let html = try? String(contentsOf: url, encoding: .utf8) else { return true }
-        return !DailyReportGenerator.isCurrentHTMLTemplate(html)
+        templateProbe.needsUpgrade(at: url)
     }
 
     func latestReportURL() -> URL? {

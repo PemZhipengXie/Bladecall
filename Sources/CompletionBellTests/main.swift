@@ -1569,6 +1569,36 @@ let tests: [(String, () throws -> Void)] = [
         try expect(html.contains("id=\"zoom\""), "Adjustable time scale control missing")
         try expect(html.contains("每个时间块在 AI 完成本轮时结束"), "Timeline cutoff explanation missing")
     }),
+    ("Report template probe reads a prefix and caches by file identity", {
+        try withTempDirectory { dir in
+            let probe = DailyReportTemplateProbe()
+            let day = Date(timeIntervalSince1970: 1_784_700_000)
+            let pinnedMTime = Date(timeIntervalSince1970: 1_784_700_000)
+            let reportURL = dir.appendingPathComponent("report.html")
+            let html = DailyReportGenerator().html(for: day, records: [], now: day.addingTimeInterval(3_600))
+            try html.write(to: reportURL, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.modificationDate: pinnedMTime], ofItemAtPath: reportURL.path)
+            try expect(!probe.needsUpgrade(at: reportURL), "The rendered report must expose its template marker within the probe prefix")
+
+            let versionText = "\(DailyReportGenerator.htmlTemplateVersion)"
+            let stale = html.replacingOccurrences(
+                of: "jianling-report-template\" content=\"\(versionText)\"",
+                with: "jianling-report-template\" content=\"\(String(repeating: "0", count: versionText.count))\""
+            )
+            try expect(stale != html, "Test setup must actually rewrite the template marker")
+            try stale.write(to: reportURL, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.modificationDate: pinnedMTime], ofItemAtPath: reportURL.path)
+            try expect(!probe.needsUpgrade(at: reportURL), "An unchanged (path, mtime, size) identity must reuse the cached verdict without re-reading")
+
+            try FileManager.default.setAttributes([.modificationDate: pinnedMTime.addingTimeInterval(5)], ofItemAtPath: reportURL.path)
+            try expect(probe.needsUpgrade(at: reportURL), "A touched file must be re-probed and its stale marker detected")
+
+            let buriedURL = dir.appendingPathComponent("buried.html")
+            try (String(repeating: " ", count: 8_192) + html).write(to: buriedURL, atomically: true, encoding: .utf8)
+            try expect(probe.needsUpgrade(at: buriedURL), "A marker beyond the probe prefix must be treated as needing regeneration")
+            try expect(probe.needsUpgrade(at: dir.appendingPathComponent("missing.html")), "A missing report must be regenerated")
+        }
+    }),
     ("Daily report v2 operations console structure", {
         let calendar = Calendar(identifier: .gregorian)
         let start = calendar.startOfDay(for: Date())
@@ -2434,18 +2464,45 @@ let tests: [(String, () throws -> Void)] = [
         try expect(scheduler.takeDue(at: base.addingTimeInterval(0.6)) == [0], "Only the first adapter's debounce has elapsed")
         try expect(scheduler.takeDue(at: base.addingTimeInterval(1.0)) == [2], "The second adapter must fire on its own clock")
     }),
-    ("Scan scheduler reconcile clock and full-scan reset", {
+    ("Scan scheduler rotates reconcile turns one adapter per tick", {
         let base = Date(timeIntervalSince1970: 1_784_700_000)
-        let scheduler = ScanScheduler(adapterCount: 5, debounce: 0.5, minAdapterInterval: 2, reconcileInterval: 90, now: base)
-
-        try expect(!scheduler.reconcileDue(at: base.addingTimeInterval(89)), "Reconcile must not fire early")
-        try expect(scheduler.reconcileDue(at: base.addingTimeInterval(91)), "Reconcile must fire after its interval")
-
-        scheduler.markDirty(3, at: base.addingTimeInterval(91))
-        scheduler.noteFullScan(at: base.addingTimeInterval(92))
-        try expect(scheduler.nextDueDelay(at: base.addingTimeInterval(92.1)) == nil, "A full scan absorbs pending dirty marks")
-        try expect(!scheduler.reconcileDue(at: base.addingTimeInterval(120)), "A full scan resets the reconcile clock")
-        try expect(scheduler.reconcileDue(at: base.addingTimeInterval(183)), "Reconcile must re-arm from the full scan")
+        let scheduler = ScanScheduler(adapterCount: 5, debounce: 0.5, minAdapterInterval: 2, reconcileInterval: 90, reconcileTolerance: 0, now: base)
+        try expect(abs(scheduler.reconcileTickInterval - 18) < 0.000_1, "Tick interval must split the reconcile interval across adapters, got \(scheduler.reconcileTickInterval)")
+        var turns: [Set<Int>] = []
+        for tick in 1...10 {
+            turns.append(scheduler.takeReconcileDue(at: base.addingTimeInterval(Double(tick) * 18)))
+        }
+        try expect(
+            turns == [[0], [1], [2], [3], [4], [0], [1], [2], [3], [4]],
+            "Turns must rotate one adapter per tick and keep each adapter's coverage period, got \(turns)"
+        )
+    }),
+    ("Scan scheduler reconcile cadence survives scan duration", {
+        let base = Date(timeIntervalSince1970: 1_784_700_000)
+        let scheduler = ScanScheduler(adapterCount: 1, debounce: 0.5, minAdapterInterval: 2, reconcileInterval: 300, reconcileTolerance: 5, now: base)
+        try expect(scheduler.takeReconcileDue(at: base.addingTimeInterval(200)).isEmpty, "Reconcile must not fire early")
+        try expect(scheduler.takeReconcileDue(at: base.addingTimeInterval(300)) == [0], "Reconcile must fire at its interval")
+        // Regression: turns used to be stamped at scan *end*, so a ~1.5 s
+        // reconcile scan made the next 300 s timer fire measure only 298.5 s,
+        // skip the round, and halve the backstop to an effective 600 s.
+        // Hand-out stamping plus the tolerance must keep every fire on cadence.
+        try expect(scheduler.takeReconcileDue(at: base.addingTimeInterval(598.5)) == [0], "A fire landing fractionally before the interval must still reconcile")
+        try expect(scheduler.takeReconcileDue(at: base.addingTimeInterval(600)).isEmpty, "A taken turn must not repeat within the same interval")
+    }),
+    ("Scan scheduler full scan re-staggers reconcile turns", {
+        let base = Date(timeIntervalSince1970: 1_784_700_000)
+        let scheduler = ScanScheduler(adapterCount: 5, debounce: 0.5, minAdapterInterval: 2, reconcileInterval: 90, reconcileTolerance: 0, now: base)
+        scheduler.markDirty(3, at: base.addingTimeInterval(10))
+        scheduler.noteFullScan(at: base.addingTimeInterval(12))
+        try expect(scheduler.nextDueDelay(at: base.addingTimeInterval(12.1)) == nil, "A full scan absorbs pending dirty marks")
+        try expect(scheduler.takeReconcileDue(at: base.addingTimeInterval(29)).isEmpty, "No reconcile turn before one tick after full coverage")
+        scheduler.markDirty(0, at: base.addingTimeInterval(29.5))
+        try expect(scheduler.takeReconcileDue(at: base.addingTimeInterval(30)) == [0], "The rotation must restart one tick after the full scan")
+        try expect(scheduler.nextDueDelay(at: base.addingTimeInterval(30)) == nil, "A reconcile turn absorbs the adapter's own dirty mark")
+        scheduler.markDirty(0, at: base.addingTimeInterval(30.4))
+        try expect(scheduler.takeDue(at: base.addingTimeInterval(31.9)).isEmpty, "A reconcile turn must stamp the per-adapter throttle clock")
+        try expect(scheduler.takeDue(at: base.addingTimeInterval(32)) == [0], "The throttled adapter must fire once the minimum interval passes")
+        try expect(scheduler.takeReconcileDue(at: base.addingTimeInterval(48)) == [1], "Later adapters keep their staggered turns")
     }),
     ("Edge hover survives continuous production pointer validation", {
         let base = Date(timeIntervalSince1970: 1_784_700_000)
