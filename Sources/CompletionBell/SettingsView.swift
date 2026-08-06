@@ -379,27 +379,29 @@ private struct GeneralSettingsPage: View {
 
                         HStack(spacing: 14) {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("字体大小")
+                                Text(state.text("字体大小", "Text size"))
                                     .fontWeight(.semibold)
                                 Text("\(Int((state.fontScale * 100).rounded()))%")
                                     .foregroundStyle(palette.tertiaryText)
                             }
                             .frame(width: 86, alignment: .leading)
                             Slider(value: $state.fontScale, in: 0.85...1.25, step: 0.05)
+                            // The reset belongs to the control it resets — it
+                            // used to sit stranded on the window-size row.
+                            Button(state.text("恢复默认", "Reset")) { state.fontScale = 1 }
+                                .buttonStyle(.bordered)
                         }
 
                         Divider().overlay(palette.line)
 
                         HStack(spacing: 14) {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("浮窗大小")
+                                Text(state.text("浮窗大小", "Window size"))
                                     .fontWeight(.semibold)
-                                Text("拖动窗口边缘或右下角，自由调整大小。")
+                                Text(state.text("拖动窗口边缘或右下角，自由调整大小。", "Drag any window edge or the lower-right corner to resize."))
                                     .foregroundStyle(palette.tertiaryText)
                             }
                             Spacer()
-                            Button("恢复默认字体") { state.fontScale = 1 }
-                            .buttonStyle(.bordered)
                         }
 
                         Divider().overlay(palette.line)
@@ -438,7 +440,7 @@ private struct GeneralSettingsPage: View {
                     VStack(spacing: 16) {
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("出剑与剑鸣")
+                                Text(state.text("出剑与剑鸣", "Draw & ring"))
                                     .fontWeight(.semibold)
                                 Text(state.noticeStyle == .quiet
                                     ? state.text("动作保持静默，AI 做完只留下未读光点。", "Keep actions quiet; completed work only leaves an unread signal.")
@@ -446,7 +448,7 @@ private struct GeneralSettingsPage: View {
                                     .foregroundStyle(palette.tertiaryText)
                             }
                             Spacer()
-                            Picker("提醒方式", selection: $state.noticeStyle) {
+                            Picker(state.text("提醒方式", "Signal style"), selection: $state.noticeStyle) {
                                 ForEach(CompletionNoticeStyle.allCases) { style in
                                     Text(style.label(language: state.language)).tag(style)
                                 }
@@ -460,27 +462,31 @@ private struct GeneralSettingsPage: View {
 
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("归鞘声")
+                                Text(state.text("归鞘声", "Sheathe sound"))
                                     .fontWeight(.semibold)
-                                Text("点“归”时响一下轻短的收束声。")
+                                Text(state.text("点“归”时响一下轻短的收束声。", "A short closing note when you sheathe an item."))
                                     .foregroundStyle(palette.tertiaryText)
                             }
                             Spacer()
-                            Toggle("归鞘声", isOn: $state.sheathSoundEnabled)
+                            Toggle(state.text("归鞘声", "Sheathe sound"), isOn: $state.sheathSoundEnabled)
                                 .labelsHidden()
                                 .toggleStyle(.switch)
                         }
 
+                        // One shared "preview" prefix instead of five repeated
+                        // ones — the row reads as a set, and fits in English.
                         HStack(spacing: 8) {
-                            Button("试听出剑") { state.previewDispatchSound() }
+                            Text(state.text("试听", "Preview"))
+                                .foregroundStyle(palette.tertiaryText)
+                            Button(state.text("出剑", "Draw")) { state.previewDispatchSound() }
                                 .buttonStyle(.bordered)
-                            Button("试听剑鸣") { state.previewSwordChime() }
+                            Button(state.text("剑鸣", "Ring")) { state.previewSwordChime() }
                                 .buttonStyle(.bordered)
-                            Button("试听归鞘") { state.previewSheathSound() }
+                            Button(state.text("归鞘", "Sheathe")) { state.previewSheathSound() }
                                 .buttonStyle(.bordered)
-                            Button("试听推") { state.previewSwordPushSound() }
+                            Button(state.text("推", "Snooze")) { state.previewSwordPushSound() }
                                 .buttonStyle(.bordered)
-                            Button("试听万剑归宗") { state.previewSwordsReturnSound() }
+                            Button(state.text("万剑归宗", "Sheathe all")) { state.previewSwordsReturnSound() }
                                 .buttonStyle(.bordered)
                             Spacer()
                         }
@@ -491,7 +497,7 @@ private struct GeneralSettingsPage: View {
                             Text(state.text("轻动效", "Light motion"))
                                 .fontWeight(.semibold)
                             Spacer()
-                            Toggle("轻动效", isOn: $state.motionEnabled)
+                            Toggle(state.text("轻动效", "Light motion"), isOn: $state.motionEnabled)
                                 .labelsHidden()
                                 .toggleStyle(.switch)
                         }
@@ -500,7 +506,7 @@ private struct GeneralSettingsPage: View {
                             Text(state.text("系统通知", "System notifications"))
                                 .fontWeight(.semibold)
                             Spacer()
-                            Toggle("系统通知", isOn: $state.systemNotificationsEnabled)
+                            Toggle(state.text("系统通知", "System notifications"), isOn: $state.systemNotificationsEnabled)
                                 .labelsHidden()
                                 .toggleStyle(.switch)
                         }
@@ -509,7 +515,7 @@ private struct GeneralSettingsPage: View {
                             Text(state.text("23:00–08:00 夜间静默", "Quiet hours 23:00–08:00"))
                                 .fontWeight(.semibold)
                             Spacer()
-                            Toggle("夜间静默", isOn: $state.quietHoursEnabled)
+                            Toggle(state.text("夜间静默", "Quiet hours"), isOn: $state.quietHoursEnabled)
                                 .labelsHidden()
                                 .toggleStyle(.switch)
                         }
@@ -519,7 +525,7 @@ private struct GeneralSettingsPage: View {
                                 Text(state.notificationStatusText)
                                     .foregroundStyle(state.notificationUnavailable ? palette.running : palette.tertiaryText)
                                 Spacer()
-                                Button("测试系统通知") { state.sendTestNotification() }
+                                Button(state.text("测试系统通知", "Send test notification")) { state.sendTestNotification() }
                                     .buttonStyle(.bordered)
                             }
                         }
