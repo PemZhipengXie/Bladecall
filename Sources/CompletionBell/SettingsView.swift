@@ -487,9 +487,32 @@ private struct GeneralSettingsPage: View {
 
                         Divider().overlay(palette.line)
 
-                        Toggle("轻动效", isOn: $state.motionEnabled).toggleStyle(.switch)
-                        Toggle("系统通知", isOn: $state.systemNotificationsEnabled).toggleStyle(.switch)
-                        Toggle("23:00–08:00 夜间静默", isOn: $state.quietHoursEnabled).toggleStyle(.switch)
+                        HStack {
+                            Text(state.text("轻动效", "Light motion"))
+                                .fontWeight(.semibold)
+                            Spacer()
+                            Toggle("轻动效", isOn: $state.motionEnabled)
+                                .labelsHidden()
+                                .toggleStyle(.switch)
+                        }
+
+                        HStack {
+                            Text(state.text("系统通知", "System notifications"))
+                                .fontWeight(.semibold)
+                            Spacer()
+                            Toggle("系统通知", isOn: $state.systemNotificationsEnabled)
+                                .labelsHidden()
+                                .toggleStyle(.switch)
+                        }
+
+                        HStack {
+                            Text(state.text("23:00–08:00 夜间静默", "Quiet hours 23:00–08:00"))
+                                .fontWeight(.semibold)
+                            Spacer()
+                            Toggle("夜间静默", isOn: $state.quietHoursEnabled)
+                                .labelsHidden()
+                                .toggleStyle(.switch)
+                        }
 
                         if state.systemNotificationsEnabled {
                             HStack {
