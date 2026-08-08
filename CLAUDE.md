@@ -68,6 +68,10 @@ iPhone App 与 Widget 源码不在本仓库。`project.yml` 只生成 macOS App 
 
 Issues 用本仓库的 GitHub Issues（gh CLI）管理。见 `docs/agents/issue-tracker.md`。
 
+### Triage labels
+
+五个规范 triage 标签按默认词表使用（needs-triage / needs-info / ready-for-agent / ready-for-human / wontfix）。见 `docs/agents/triage-labels.md`。
+
 ### Domain docs
 
 单上下文布局：根目录 `CONTEXT.md` + `docs/adr/`。见 `docs/agents/domain.md`。
