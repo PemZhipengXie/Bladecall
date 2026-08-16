@@ -26,6 +26,12 @@ final class AppState: ObservableObject {
             onPresentationModeChanged?(oldValue, presentationMode)
         }
     }
+    @Published var globalShortcutEnabled: Bool {
+        didSet {
+            defaults.set(globalShortcutEnabled, forKey: Keys.globalShortcutEnabled)
+            onGlobalShortcutChanged?(globalShortcutEnabled)
+        }
+    }
     @Published var notchScreenChoices: [EdgeScreenChoice] = []
     @Published var notchScreenID: String? {
         didSet {
@@ -51,9 +57,9 @@ final class AppState: ObservableObject {
         didSet {
             guard oldValue != edgeScreenID else { return }
             if let edgeScreenID {
-                defaults.set(edgeScreenID, forKey: "jianlingRightEdgeScreenID")
+                defaults.set(edgeScreenID, forKey: Keys.edgeScreenID)
             } else {
-                defaults.removeObject(forKey: "jianlingRightEdgeScreenID")
+                defaults.removeObject(forKey: Keys.edgeScreenID)
             }
             onEdgeScreenChanged?(edgeScreenID)
         }
@@ -166,6 +172,7 @@ final class AppState: ObservableObject {
     var onFloatingPinChanged: ((Bool) -> Void)?
     var onDockIconChanged: ((Bool) -> Void)?
     var onPresentationModeChanged: ((PresentationMode, PresentationMode) -> Void)?
+    var onGlobalShortcutChanged: ((Bool) -> Void)?
     var onNotchPinnedChanged: ((Bool) -> Void)?
     var onNotchScreenChanged: ((String?) -> Void)?
     var onEdgePinnedChanged: ((Bool) -> Void)?
@@ -177,8 +184,10 @@ final class AppState: ObservableObject {
         static let language = "jianlingLanguage"
         static let appearance = "jianlingAppearance"
         static let presentationMode = "jianlingPresentationMode"
+        static let globalShortcutEnabled = "jianlingGlobalShortcutEnabled"
         static let notchPinned = "jianlingNotchPinned"
         static let notchScreenID = "jianlingNotchScreenID"
+        static let edgeScreenID = "jianlingRightEdgeScreenID"
         static let edgePinned = "jianlingEdgePinned"
         static let edgeTagSize = "jianlingEdgeTagSize"
         static let noticeStyle = "jianlingNoticeStyle"
@@ -230,6 +239,9 @@ final class AppState: ObservableObject {
         ) ?? JianlingSharedPreferences.appLanguage
         self.appearance = JianlingAppearance(rawValue: defaults.string(forKey: Keys.appearance) ?? "") ?? .modern
         self.presentationMode = PresentationMode(rawValue: defaults.string(forKey: Keys.presentationMode) ?? "") ?? .floating
+        self.globalShortcutEnabled = defaults.object(forKey: Keys.globalShortcutEnabled) as? Bool ?? true
+        self.notchScreenID = defaults.string(forKey: Keys.notchScreenID)
+        self.edgeScreenID = defaults.string(forKey: Keys.edgeScreenID)
         self.notchPinned = defaults.object(forKey: Keys.notchPinned) as? Bool ?? false
         self.edgePinned = defaults.object(forKey: Keys.edgePinned) as? Bool ?? false
         self.edgeTagSize = (defaults.string(forKey: Keys.edgeTagSize)).flatMap(EdgeTagSize.init(rawValue:)) ?? .medium

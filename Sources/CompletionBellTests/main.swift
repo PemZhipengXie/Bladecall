@@ -2293,6 +2293,19 @@ let tests: [(String, () throws -> Void)] = [
         _ = hover.send(.entryEntered, at: base.addingTimeInterval(1.2))
         try expect(hover.advance(to: base.addingTimeInterval(1.43)).isExpanded, "A later deliberate hover may expand again")
     }),
+    ("Explicit dismiss collapses pinned and hovered panels symmetrically", {
+        let base = Date(timeIntervalSince1970: 1_784_700_000)
+        let hover = EdgeHoverStateMachine(now: base)
+        _ = hover.send(.pinChanged(true), at: base)
+        _ = hover.send(.pointerValidation(isInsideHotRegion: true), at: base.addingTimeInterval(0.1))
+        let collapsed = hover.send(.dismissRequested, at: base.addingTimeInterval(0.2))
+        try expect(!collapsed.isExpanded && !collapsed.isHoverArmed, "Escape must beat pin and hover state")
+        try expect(!hover.advance(to: base.addingTimeInterval(2)).isExpanded, "A stationary pointer must not undo explicit collapse")
+        _ = hover.send(.pointerValidation(isInsideHotRegion: false), at: base.addingTimeInterval(2.1))
+        let reopened = hover.send(.entryClicked, at: base.addingTimeInterval(2.2))
+        try expect(reopened.isExpanded, "The same explicit path must allow a later re-expand")
+        try expect(!hover.send(.dismissRequested, at: base.addingTimeInterval(2.3)).isExpanded, "A second explicit dismiss must collapse again")
+    }),
     ("Pointer validation recovers a lost exit event", {
         let base = Date(timeIntervalSince1970: 1_784_700_000)
         let hover = EdgeHoverStateMachine(now: base)
@@ -2428,6 +2441,25 @@ let tests: [(String, () throws -> Void)] = [
         try expect(!resolver.takeScreenChangeDue(at: base.addingTimeInterval(2.34)), "Display changes must debounce")
         try expect(resolver.takeScreenChangeDue(at: base.addingTimeInterval(2.36)), "A stable UUID set must eventually trigger one recompute")
         try expect(!resolver.takeScreenChangeDue(at: base.addingTimeInterval(3)), "Taking the change must clear it")
+    }),
+    ("Edge screen resolver catches the first geometry-only change", {
+        let base = Date(timeIntervalSince1970: 1_784_700_000)
+        let original = EdgeScreenDescriptor(
+            id: "main",
+            frame: EdgeRect(x: 0, y: 0, width: 1512, height: 982),
+            visibleFrame: EdgeRect(x: 0, y: 0, width: 1512, height: 944),
+            isMain: true
+        )
+        let resized = EdgeScreenDescriptor(
+            id: "main",
+            frame: EdgeRect(x: 0, y: 0, width: 1728, height: 1117),
+            visibleFrame: EdgeRect(x: 0, y: 0, width: 1728, height: 1079),
+            isMain: true
+        )
+        let resolver = EdgePlacementResolver(initialScreens: [original], displayChangeDebounce: 0.35, now: base)
+        resolver.noteScreenChange([resized], at: base.addingTimeInterval(1))
+        try expect(!resolver.takeScreenChangeDue(at: base.addingTimeInterval(1.34)), "Geometry changes must still debounce")
+        try expect(resolver.takeScreenChangeDue(at: base.addingTimeInterval(1.36)), "The first same-ID geometry change must not be swallowed")
     }),
     ("Scan scheduler batches a burst into one due set", {
         let base = Date(timeIntervalSince1970: 1_784_700_000)

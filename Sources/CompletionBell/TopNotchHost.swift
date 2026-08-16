@@ -4,10 +4,7 @@ import CompletionBellCore
 import SwiftUI
 
 @MainActor
-private final class TopNotchPanel: NSPanel {
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { false }
-}
+private final class TopNotchPanel: KeyboardDismissiblePanel {}
 
 @MainActor
 private final class TopNotchViewModel: ObservableObject {
@@ -26,7 +23,7 @@ final class TopNotchHost {
     private let state: AppState
     private var hover = EdgeHoverStateMachine()
     private let geometryResolver = NotchGeometryResolver()
-    private var screenChangeResolver: EdgePlacementResolver
+    private let screenChangeResolver: EdgePlacementResolver
     private let viewModel = TopNotchViewModel()
     private var panel: NSPanel?
     private var tickTimer: Timer?
@@ -43,7 +40,7 @@ final class TopNotchHost {
     init(state: AppState) {
         self.state = state
         self.screenDescriptors = RightEdgeHost.screens()
-        self.screenChangeResolver = EdgePlacementResolver(initialScreenIDs: Set(screenDescriptors.map(\.id)))
+        self.screenChangeResolver = EdgePlacementResolver(initialScreens: screenDescriptors)
         currentExpanded = hover.send(.pinChanged(state.notchPinned), at: Date()).isExpanded
         viewModel.isExpanded = currentExpanded
     }
@@ -55,7 +52,7 @@ final class TopNotchHost {
     func show() -> Bool {
         if panel == nil {
             screenDescriptors = RightEdgeHost.screens()
-            screenChangeResolver = EdgePlacementResolver(initialScreenIDs: Set(screenDescriptors.map(\.id)))
+            screenChangeResolver.synchronize(with: screenDescriptors, at: Date())
             createPanel()
         }
         guard let panel else { return false }
@@ -95,7 +92,6 @@ final class TopNotchHost {
         viewModel.geometry = nil
         pendingScreenDescriptors = []
         screenDescriptors = RightEdgeHost.screens()
-        screenChangeResolver = EdgePlacementResolver(initialScreenIDs: Set(screenDescriptors.map(\.id)))
     }
 
     func setPinned(_ pinned: Bool) {
@@ -112,6 +108,22 @@ final class TopNotchHost {
     func contentActivated() {
         guard panel != nil else { return }
         apply(hover.send(.contentActivated, at: Date()))
+    }
+
+    var isExpanded: Bool { currentExpanded }
+
+    func expand() {
+        guard panel != nil, !currentExpanded else { return }
+        apply(hover.send(.entryClicked, at: Date()))
+    }
+
+    func collapse() {
+        guard panel != nil, currentExpanded else { return }
+        apply(hover.send(.dismissRequested, at: Date()))
+    }
+
+    func toggleExpanded() {
+        currentExpanded ? collapse() : expand()
     }
 
     /// The strip beside the notch exists only while it has something to say:
@@ -156,6 +168,7 @@ final class TopNotchHost {
         panel.isReleasedWhenClosed = false
         panel.becomesKeyOnlyIfNeeded = true
         panel.appearance = NSAppearance(named: .darkAqua)
+        panel.onEscape = { [weak self] in self?.collapse() }
         self.panel = panel
 
         viewModel.onToggle = { [weak self] in self?.toggle() }
@@ -373,8 +386,9 @@ private struct CapsuleCompactEntry: View {
     @ObservedObject var state: AppState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    @State private var pulse = false
-    private let palette = JianlingPalette(.modern, colorScheme: .dark)
+    @State private var pulseProgress = 1.0
+    @State private var previousUnreadCount = 0
+    private var palette: JianlingPalette { JianlingPalette(state.appearance, colorScheme: .dark) }
 
     private var count: Int { state.unreadCount > 0 ? state.unreadCount : state.activeCount }
     private var statusColor: Color {
@@ -394,13 +408,19 @@ private struct CapsuleCompactEntry: View {
                 JianlingSeal(size: 17)
                     .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                 if count > 0 {
-                    Circle()
-                        .fill(statusColor)
-                        .frame(width: 6, height: 6)
-                        .shadow(color: statusColor.opacity(0.55), radius: 2)
-                        .shadow(color: .black.opacity(0.35), radius: 1, y: 0.5)
-                        .scaleEffect(pulse ? 1.45 : 1)
-                        .offset(x: 2.5, y: -2.5)
+                    ZStack {
+                        Circle()
+                            .stroke(statusColor, lineWidth: 1.5)
+                            .frame(width: 7, height: 7)
+                            .scaleEffect(1 + pulseProgress * 1.5)
+                            .opacity(1 - pulseProgress)
+                        Circle()
+                            .fill(statusColor)
+                            .frame(width: 6, height: 6)
+                            .shadow(color: statusColor.opacity(0.55), radius: 2)
+                            .shadow(color: .black.opacity(0.35), radius: 1, y: 0.5)
+                    }
+                    .offset(x: 2.5, y: -2.5)
                 }
             }
             // The dot already says "something happened"; the word did not add
@@ -453,12 +473,13 @@ private struct CapsuleCompactEntry: View {
         .shadow(color: .black.opacity(0.18), radius: 2, y: 1)
         .shadow(color: .black.opacity(0.16), radius: 14, y: 5)
         .opacity(count == 0 ? 0.72 : 1)
+        .onAppear { previousUnreadCount = state.unreadCount }
         .onChange(of: state.unreadCount) { value in
-            guard value > 0, state.motionEnabled, !reduceMotion else { return }
-            pulse = false
-            withAnimation(.easeOut(duration: 0.28)) { pulse = true }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                withAnimation(.easeOut(duration: 0.4)) { pulse = false }
+            defer { previousUnreadCount = value }
+            guard value > previousUnreadCount, state.motionEnabled, !reduceMotion else { return }
+            pulseProgress = 0
+            DispatchQueue.main.async {
+                withAnimation(.easeOut(duration: 0.7)) { pulseProgress = 1 }
             }
         }
     }
@@ -490,11 +511,6 @@ private struct CapsuleCompactEntry: View {
         }
     }
 
-    private func pulseUnreadOnce() {
-        guard state.unreadCount > 0, state.motionEnabled, !reduceMotion else { return }
-        pulse = false
-        withAnimation(.easeOut(duration: 0.7)) { pulse = true }
-    }
 }
 
 
@@ -509,7 +525,7 @@ private struct NotchIsland: View {
     let geometry: NotchGeometry
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private let palette = JianlingPalette(.modern, colorScheme: .dark)
+    private var palette: JianlingPalette { JianlingPalette(state.appearance, colorScheme: .dark) }
 
     private var expanded: Bool { model.isExpanded }
     private var hasSlots: Bool { geometry.collapsedRect.width > geometry.notchRect.width + 1 }

@@ -340,6 +340,21 @@ private struct GeneralSettingsPage: View {
 
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
+                                Text(state.text("全局快捷键", "Global shortcut"))
+                                    .fontWeight(.semibold)
+                                Text(state.text("按 ⌃⌥J 显示或收起当前面板，在其他应用中也可使用。", "Press ⌃⌥J to show or collapse the current panel, even from other apps."))
+                                    .foregroundStyle(palette.tertiaryText)
+                            }
+                            Spacer()
+                            Toggle(state.text("全局快捷键", "Global shortcut"), isOn: $state.globalShortcutEnabled)
+                                .labelsHidden()
+                                .toggleStyle(.switch)
+                        }
+
+                        Divider().overlay(palette.line)
+
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
                                 Text(state.text("语言", "Language"))
                                     .fontWeight(.semibold)
                                 Text(state.text("界面、通知和打开的日报会一起切换。", "Changes the interface, notifications, and the report you open."))

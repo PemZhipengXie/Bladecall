@@ -117,6 +117,35 @@ public final class EdgePlacementResolver {
         self.lastNow = now
     }
 
+    /// Seeds both identity and geometry. Hosts should keep one resolver for
+    /// their lifetime and use this initializer so the first geometry-only
+    /// display notification is treated as a real change rather than a seed.
+    public convenience init(
+        initialScreens: [EdgeScreenDescriptor],
+        displayChangeDebounce: TimeInterval = 0.35,
+        now: Date = Date()
+    ) {
+        self.init(
+            initialScreenIDs: Set(initialScreens.filter { $0.isValid && !$0.id.isEmpty }.map(\.id)),
+            displayChangeDebounce: displayChangeDebounce,
+            now: now
+        )
+        synchronize(with: initialScreens, at: now)
+    }
+
+    /// Re-baselines a resolver after its host has been stopped and shown
+    /// again, without replacing the resolver instance or carrying stale work.
+    public func synchronize(with screens: [EdgeScreenDescriptor], at now: Date) {
+        let effectiveNow = max(lastNow, now)
+        lastNow = effectiveNow
+        appliedScreenIDs = Set(screens.filter { $0.isValid && !$0.id.isEmpty }.map(\.id))
+        appliedGeometryFingerprint = geometryFingerprint(screens)
+        hasAppliedGeometryFingerprint = true
+        pendingScreenIDs = nil
+        pendingGeometryFingerprint = nil
+        pendingSince = nil
+    }
+
     public func noteScreenChange(_ screens: [EdgeScreenDescriptor], at now: Date) {
         let effectiveNow = max(lastNow, now)
         lastNow = effectiveNow

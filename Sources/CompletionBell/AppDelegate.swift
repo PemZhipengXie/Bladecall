@@ -49,6 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var statusItem: NSStatusItem!
     private let popover = NSPopover()
     private var floatingPanel: NSPanel?
+    private var globalHotKeyController: GlobalHotKeyController?
     private var topNotchHost: TopNotchHost?
     private var rightEdgeHost: RightEdgeHost?
     private var settingsWindow: NSWindow?
@@ -129,6 +130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         topNotchHost?.stop()
         rightEdgeHost?.stop()
         floatingPanel?.saveFrame(usingName: floatingFrameName)
+        globalHotKeyController?.setEnabled(false)
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -215,7 +217,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             width: PresentationLayout.floatingDefaultWidth,
             height: PresentationLayout.floatingDefaultHeight
         )
-        let panel = NSPanel(
+        let panel = KeyboardDismissiblePanel(
             contentRect: NSRect(origin: .zero, size: defaultSize),
             styleMask: [.nonactivatingPanel, .borderless, .resizable],
             backing: .buffered,
@@ -254,6 +256,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // Same reason as the popover: the palette is light, so the window's
         // effective appearance must be too or AppKit chrome goes dark.
         panel.appearance = NSAppearance(named: .aqua)
+        panel.onEscape = { [weak self] in self?.destroyFloatingPanel() }
         floatingPanel = panel
         return true
     }
@@ -293,6 +296,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             guard let self, !self.isApplyingPresentationRoute else { return }
             self.applyPresentationRoute(self.presentationRouter.route(mode: new, trigger: .modeChanged(from: old, to: new)))
         }
+        let globalHotKeyController = GlobalHotKeyController { [weak self] in
+            self?.toggleCurrentPresentationFromHotKey()
+        }
+        self.globalHotKeyController = globalHotKeyController
+        state.onGlobalShortcutChanged = { [weak globalHotKeyController] enabled in
+            globalHotKeyController?.setEnabled(enabled)
+        }
+        globalHotKeyController.setEnabled(state.globalShortcutEnabled)
         state.onNotchPinnedChanged = { [weak self] pinned in self?.topNotchHost?.setPinned(pinned) }
         state.onNotchScreenChanged = { [weak self] id in self?.topNotchHost?.moveToScreen(id) }
         state.onEdgePinnedChanged = { [weak self] pinned in self?.rightEdgeHost?.setPinned(pinned) }
@@ -611,15 +622,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if state.notchScreenChoices.map(\.id) != choices.map(\.id) {
             state.notchScreenChoices = choices
         }
-        let storedNotch = UserDefaults.standard.string(forKey: "jianlingNotchScreenID")
-        let resolvedNotch = choices.contains { $0.id == storedNotch } ? storedNotch : nil
-        if state.notchScreenID != resolvedNotch { state.notchScreenID = resolvedNotch }
         if state.edgeScreenChoices.map(\.id) != choices.map(\.id) {
             state.edgeScreenChoices = choices
         }
-        let stored = UserDefaults.standard.string(forKey: "jianlingRightEdgeScreenID")
-        let resolved = choices.contains { $0.id == stored } ? stored : nil
-        if state.edgeScreenID != resolved { state.edgeScreenID = resolved }
+    }
+
+    private func toggleCurrentPresentationFromHotKey() {
+        switch state.presentationMode {
+        case .floating:
+            toggleCurrentHost()
+        case .notch:
+            if let host = topNotchHost, host.isVisible {
+                host.toggleExpanded()
+            } else {
+                presentCurrentHost(trigger: .statusMenuShow)
+                topNotchHost?.expand()
+            }
+        case .rightEdge:
+            if let host = rightEdgeHost, host.isVisible {
+                host.toggleExpanded()
+            } else {
+                presentCurrentHost(trigger: .statusMenuShow)
+                rightEdgeHost?.expand()
+            }
+        }
     }
 
     private func presentCurrentHost(trigger: PresentationTrigger) {

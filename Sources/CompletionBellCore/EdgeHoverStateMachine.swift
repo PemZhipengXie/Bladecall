@@ -9,6 +9,7 @@ public enum EdgeHoverEvent: Equatable, Sendable {
     case menuOpened
     case menuClosed
     case pinChanged(Bool)
+    case dismissRequested
 }
 
 public struct EdgeHoverSnapshot: Equatable, Sendable {
@@ -123,6 +124,14 @@ public final class EdgeHoverStateMachine {
             } else if expanded && !isInsideHotRegion {
                 collapseAt = now.addingTimeInterval(collapseDelay)
             }
+        case .dismissRequested:
+            // Escape and the system-wide shortcut are explicit user intent.
+            // They must beat pin/hover state and must not instantly re-open
+            // while the pointer is still parked over the panel.
+            expanded = false
+            expandAt = nil
+            collapseAt = nil
+            hoverArmed = false
         }
         return snapshot
     }

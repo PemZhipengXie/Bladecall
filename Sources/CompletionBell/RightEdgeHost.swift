@@ -5,10 +5,7 @@ import CoreGraphics
 import SwiftUI
 
 @MainActor
-private final class EdgePanel: NSPanel {
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { false }
-}
+private final class EdgePanel: KeyboardDismissiblePanel {}
 
 @MainActor
 private final class EdgeHostViewModel: ObservableObject {
@@ -30,7 +27,6 @@ private final class EdgeHostViewModel: ObservableObject {
 @MainActor
 final class RightEdgeHost {
     private enum Keys {
-        static let screenID = "jianlingRightEdgeScreenID"
         static let verticalRatio = "jianlingRightEdgeVerticalRatio"
     }
 
@@ -140,6 +136,22 @@ final class RightEdgeHost {
         apply(hover.send(.contentActivated, at: Date()))
     }
 
+    var isExpanded: Bool { currentExpanded }
+
+    func expand() {
+        guard panel != nil, !currentExpanded else { return }
+        apply(hover.send(.entryClicked, at: Date()))
+    }
+
+    func collapse() {
+        guard panel != nil, currentExpanded else { return }
+        apply(hover.send(.dismissRequested, at: Date()))
+    }
+
+    func toggleExpanded() {
+        currentExpanded ? collapse() : expand()
+    }
+
     private func createPanel() {
         let panel = EdgePanel(
             contentRect: NSRect(x: 0, y: 0, width: state.edgeTagSize.hitWidth, height: state.edgeTagSize.baseHeight),
@@ -158,6 +170,7 @@ final class RightEdgeHost {
         panel.isReleasedWhenClosed = false
         panel.becomesKeyOnlyIfNeeded = true
         panel.appearance = NSAppearance(named: .aqua)
+        panel.onEscape = { [weak self] in self?.collapse() }
         self.panel = panel
         rebuildContent()
         stateObserver = Publishers.CombineLatest4(
@@ -341,7 +354,7 @@ final class RightEdgeHost {
         viewModel.compactHeight = compactHeight
         if viewModel.tagSize != state.edgeTagSize { viewModel.tagSize = state.edgeTagSize }
         viewModel.screenChoices = Self.screenChoices(from: screenDescriptors)
-        viewModel.selectedScreenID = UserDefaults.standard.string(forKey: Keys.screenID)
+        viewModel.selectedScreenID = state.edgeScreenID
         viewModel.onToggle = { [weak self] in self?.toggle() }
         viewModel.onPin = { [weak self] in self?.state.edgePinned.toggle() }
         viewModel.onClose = { [weak self] in self?.close() }
@@ -364,7 +377,7 @@ final class RightEdgeHost {
     private func refreshFrame(animated: Bool) -> Bool {
         guard let panel else { return false }
         let ratio = UserDefaults.standard.object(forKey: Keys.verticalRatio) as? Double ?? 0.5
-        let screenID = UserDefaults.standard.string(forKey: Keys.screenID)
+        let screenID = state.edgeScreenID
         let width = currentExpanded ? PresentationLayout.edgeExpandedWidth : state.edgeTagSize.hitWidth
         let height = currentExpanded ? expandedHeight : compactHeight
         guard let placement = placementResolver.resolve(
@@ -373,7 +386,6 @@ final class RightEdgeHost {
             size: (width, height),
             tagHeight: compactHeight
         ) else { return false }
-        if screenID != placement.screenID { UserDefaults.standard.set(placement.screenID, forKey: Keys.screenID) }
         let conflictChanged = dockConflict != placement.dockConflict
         dockConflict = placement.dockConflict
         if conflictChanged { viewModel.dockConflict = dockConflict }
@@ -424,7 +436,7 @@ final class RightEdgeHost {
             if ended { dragStartY = nil }
             return
         }
-        UserDefaults.standard.set(descriptor.id, forKey: Keys.screenID)
+        state.edgeScreenID = descriptor.id
         UserDefaults.standard.set(ratio, forKey: Keys.verticalRatio)
         refreshFrame(animated: false)
         if ended { dragStartY = nil }
