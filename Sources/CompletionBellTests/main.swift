@@ -3336,6 +3336,57 @@ let tests: [(String, () throws -> Void)] = [
             let third = detector.process(adapter.scan(now: now.addingTimeInterval(120)).sessions, at: now.addingTimeInterval(120))
             try expect(third.isEmpty, "Re-scanning the same done drop stays silent")
         }
+    }),
+("Closed report days collapse a catch-up backlog to one entry per day", {
+        // 停机一周后首轮扫描会带来上百条跨天变化：每个已结束的日子只该重算一次，今天不算。
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        let today = calendar.startOfDay(for: Date(timeIntervalSince1970: 1_791_000_000))
+        let now = today.addingTimeInterval(3 * 3_600)
+        let dayBefore = today.addingTimeInterval(-2 * 86_400)
+        let yesterday = today.addingTimeInterval(-86_400)
+        var timestamps: [Date] = []
+        for minute in 0..<40 {
+            timestamps.append(yesterday.addingTimeInterval(Double(minute) * 60))
+            timestamps.append(dayBefore.addingTimeInterval(Double(minute) * 90))
+        }
+        timestamps.append(now.addingTimeInterval(-60))
+        let days = DailyReportGenerator.closedDays(for: timestamps, now: now, calendar: calendar)
+        try expect(days == [dayBefore, yesterday], "Expected two closed days in order, got \(days)")
+        try expect(DailyReportGenerator.closedDays(for: [now], now: now, calendar: calendar).isEmpty, "Today never counts as closed")
+    }),
+("Codex continuation rollout of the same session reports one session", {
+        // Codex 会把同一会话续写进 `rollout-…-<id>_<子id>.jsonl`，两份 session_meta 的 id 相同。
+        try withTempDirectory { root in
+            let first = root.appendingPathComponent("rollout-2026-10-02T16-01-54-cont-1.jsonl")
+            try writeLines([
+                ["type": "session_meta", "timestamp": "2026-10-02T08:01:54.000Z", "payload": ["id": "cont-1", "cwd": "/tmp/project"]],
+                ["type": "event_msg", "timestamp": "2026-10-02T08:01:55.000Z", "payload": ["type": "task_started", "turn_id": "turn-1"]],
+                ["type": "event_msg", "timestamp": "2026-10-02T08:20:00.000Z", "payload": ["type": "task_complete", "turn_id": "turn-1"]]
+            ], to: first)
+            let continuation = root.appendingPathComponent("rollout-2026-10-02T16-26-44-cont-1_child-1.jsonl")
+            try writeLines([
+                ["type": "session_meta", "timestamp": "2026-10-02T08:26:44.000Z", "payload": ["id": "cont-1", "cwd": "/tmp/project"]],
+                ["type": "event_msg", "timestamp": "2026-10-02T08:26:45.000Z", "payload": ["type": "task_started", "turn_id": "turn-2"]]
+            ], to: continuation)
+            let base = Date()
+            try FileManager.default.setAttributes([.modificationDate: base.addingTimeInterval(-600)], ofItemAtPath: first.path)
+            try FileManager.default.setAttributes([.modificationDate: base], ofItemAtPath: continuation.path)
+            let sessions = CodexAdapter(root: root, databaseURL: nil, maxAge: 100 * 365 * 24 * 60 * 60, maxFiles: 10).scan().sessions
+            try expect(sessions.count == 1, "Expected one session for the continued thread, got \(sessions.count)")
+            try expect(sessions[0].status == .running, "The newer continuation segment should win")
+        }
+    }),
+("Daily timeline tolerates duplicate current sessions", {
+        try withTempDirectory { root in
+            try writeLines([
+                ["type": "session_meta", "timestamp": "2026-07-15T00:00:00.000Z", "payload": ["id": "dup-1", "cwd": "/tmp/project"]],
+                ["type": "event_msg", "timestamp": "2026-07-15T00:00:01.000Z", "payload": ["type": "task_started", "turn_id": "turn-1"]]
+            ], to: root.appendingPathComponent("rollout-dup.jsonl"))
+            let session = try unwrap(CodexAdapter(root: root, databaseURL: nil, maxAge: 100 * 365 * 24 * 60 * 60, maxFiles: 10).scan().sessions.first, "Codex session missing")
+            let timeline = DailyTimelineBuilder().build(for: Date(), records: [], currentSessions: [session, session])
+            try expect(timeline.tasks.count <= 1, "Duplicate snapshots must not double-count")
+        }
     })
 ]
 

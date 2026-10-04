@@ -193,12 +193,7 @@ struct GemBottomFacet: Shape {
 
 enum AppAssets {
     static func resourceURL(relativePath: String) -> URL? {
-        var bundles = [Bundle.main]
-#if SWIFT_PACKAGE
-        bundles.append(Bundle.module)
-#endif
-        for bundle in bundles {
-            guard let root = bundle.resourceURL else { continue }
+        for root in resourceRoots {
             let url = root.appendingPathComponent(relativePath)
             if FileManager.default.fileExists(atPath: url.path) {
                 return url
@@ -206,6 +201,21 @@ enum AppAssets {
         }
         return nil
     }
+
+    /// 不用 SwiftPM 生成的 `Bundle.module`：它只认 `剑令.app/` 根目录和构建机
+    /// 写死的 `.build` 绝对路径，两处都没有就 fatalError。打包脚本把资源包放在
+    /// `Contents/Resources/`，换台机器或项目目录改名，App 一启动就崩。
+    private static let resourceRoots: [URL] = {
+        var roots = [Bundle.main.resourceURL].compactMap { $0 }
+        // .app 内在 Contents/Resources/；`swift run` 时与可执行文件同目录。
+        for directory in [Bundle.main.resourceURL, Bundle.main.bundleURL].compactMap({ $0 }) {
+            let bundleURL = directory.appendingPathComponent("CompletionBell_CompletionBell.bundle")
+            if let root = Bundle(url: bundleURL)?.resourceURL, !roots.contains(root) {
+                roots.append(root)
+            }
+        }
+        return roots
+    }()
 
     static func image(relativePath: String) -> NSImage? {
         guard let url = resourceURL(relativePath: relativePath) else { return nil }

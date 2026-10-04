@@ -4,6 +4,17 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# CLT 27 的 macOS 27 SDK 缺 SwiftUIMacros 插件，@State 编不过；本机有 26.x SDK 就固定用它。
+if [[ -z "${SDKROOT:-}" && -d /Library/Developer/CommandLineTools/SDKs/MacOSX26.sdk ]]; then
+  export SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.sdk
+fi
+
+# Bundle.module 找不到资源包会 fatalError（只认 .app 根目录和构建机路径），App 内禁用。
+if grep -rnE '^[[:space:]]*[^/[:space:]].*Bundle\.module' "$ROOT/Sources/CompletionBell"; then
+  echo "Sources/CompletionBell 不得使用 Bundle.module，改用 AppAssets.resourceURL" >&2
+  exit 1
+fi
+
 swift run completion-bell-tests
 SIMULATION="$(swift run -c release completion-bell-cli simulate)"
 echo "$SIMULATION"

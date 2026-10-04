@@ -4,6 +4,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# CLT 27 的 macOS 27 SDK 缺 SwiftUIMacros 插件，@State 编不过；本机有 26.x SDK 就固定用它。
+if [[ -z "${SDKROOT:-}" && -d /Library/Developer/CommandLineTools/SDKs/MacOSX26.sdk ]]; then
+  export SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.sdk
+fi
+
 swift build -c release --product CompletionBell
 BIN_DIR="$(swift build -c release --show-bin-path)"
 APP="$ROOT/dist/剑令.app"
