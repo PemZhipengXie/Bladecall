@@ -161,7 +161,7 @@ public final class CodexAdapter: SessionAdapter {
         cache = cache.filter { discoveredPaths.contains($0.key) }
         return AdapterScanResult(
             tool: .codex,
-            sessions: sessions,
+            sessions: Self.latestPerSession(sessions),
             errors: errors,
             diagnostics: AdapterScanDiagnostics(
                 didFullDiscovery: catalogSnapshot.didFullDiscovery,
@@ -255,6 +255,22 @@ public final class CodexAdapter: SessionAdapter {
             turnStartedAt: facts.turnStartedAt,
             turnCompletedAt: facts.turnCompletedAt
         )
+    }
+
+    /// Codex 会把同一会话续写进 `rollout-…-<id>_<子id>.jsonl`，两份 session_meta 的 id
+    /// 相同；按会话只保留最近活动的那份，保持首次出现的位置。
+    static func latestPerSession(_ sessions: [SessionSnapshot]) -> [SessionSnapshot] {
+        var indexByID: [String: Int] = [:]
+        var result: [SessionSnapshot] = []
+        for session in sessions {
+            if let index = indexByID[session.id] {
+                if session.lastActivity > result[index].lastActivity { result[index] = session }
+            } else {
+                indexByID[session.id] = result.count
+                result.append(session)
+            }
+        }
+        return result
     }
 
     private func projectTitle(from cwd: String?, sessionID: String) -> String {

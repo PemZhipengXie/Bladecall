@@ -487,10 +487,6 @@ final class AppState: ObservableObject {
         }
         for transition in reconciliation.transitions {
             activityStore.append(ActivityRecord(transition: transition))
-            reportService.regenerateReportIfClosedDay(
-                transition.timestamp,
-                includeBackground: !hideBackgroundInReports
-            )
             if transition.kind == .handled && Calendar.current.isDateInToday(transition.timestamp) {
                 todayHandledCount += 1
             }
@@ -503,6 +499,10 @@ final class AppState: ObservableObject {
                 notifier.playDispatchSound()
             }
         }
+        reportService.regenerateClosedDaysAsync(
+            containing: reconciliation.transitions.map(\.timestamp),
+            includeBackground: !hideBackgroundInReports
+        )
         for event in reconciliation.completionEvents {
             AppLogger.shared.write("assistant_final_detected", fields: [
                 "event_id": event.id,

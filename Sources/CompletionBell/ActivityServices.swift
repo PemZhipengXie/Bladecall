@@ -184,20 +184,28 @@ final class DailyReportService: @unchecked Sendable {
         NSWorkspace.shared.open(language == .english ? urls.englishHTML : urls.html)
     }
 
-    func regenerateReportIfClosedDay(
-        _ day: Date,
+    /// 停机多日后首轮扫描会带来上百条跨天变化；逐条在主线程整天重算会把界面卡死。
+    /// 这里按天去重，并与补缺生成共用后台队列，同一天只重算一次、不并发写同一文件。
+    func regenerateClosedDaysAsync(
+        containing timestamps: [Date],
         includeBackground: Bool,
         now: Date = Date()
     ) {
-        let target = calendar.startOfDay(for: day)
-        guard target < calendar.startOfDay(for: now) else { return }
-        writeReports(
-            for: target,
-            records: store.records(),
-            currentSessions: [],
-            includeBackground: includeBackground,
-            now: now
-        )
+        let days = DailyReportGenerator.closedDays(for: timestamps, now: now, calendar: calendar)
+        guard !days.isEmpty else { return }
+        generationQueue.async { [weak self] in
+            guard let self else { return }
+            let records = self.store.records()
+            for day in days {
+                self.writeReports(
+                    for: day,
+                    records: records,
+                    currentSessions: [],
+                    includeBackground: includeBackground,
+                    now: now
+                )
+            }
+        }
     }
 
     private func reportURLs(for day: Date) -> (markdown: URL, html: URL, englishHTML: URL) {

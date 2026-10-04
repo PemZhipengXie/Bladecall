@@ -222,7 +222,10 @@ public struct DailyTimelineBuilder {
     ) -> DailyTimeline {
         let dayStart = calendar.startOfDay(for: day)
         let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart.addingTimeInterval(86_400)
-        let currentByID = Dictionary(uniqueKeysWithValues: currentSessions.map { ($0.id, $0) })
+        // 适配器偶有同 id 快照（如 Codex 续写文件）；uniqueKeysWithValues 遇重复会直接崩溃。
+        let currentByID = Dictionary(currentSessions.map { ($0.id, $0) }) { first, second in
+            first.lastActivity >= second.lastActivity ? first : second
+        }
         let starts = records.filter { $0.kind == .taskStarted && $0.timestamp < dayEnd }
             .sorted { $0.timestamp < $1.timestamp }
         let completions = records.filter {
@@ -369,6 +372,13 @@ public struct DailyReportGenerator {
     public init() {}
 
     public static let htmlTemplateVersion = 4
+
+    /// 已结束（早于今天）的日子，去重后按时间顺序排列；今天的日报由打开时现算。
+    public static func closedDays(for timestamps: [Date], now: Date, calendar: Calendar) -> [Date] {
+        let today = calendar.startOfDay(for: now)
+        let days = Set(timestamps.map { calendar.startOfDay(for: $0) }.filter { $0 < today })
+        return days.sorted()
+    }
 
     public static func isCurrentHTMLTemplate(_ html: String) -> Bool {
         html.contains("<meta name=\"jianling-report-template\" content=\"\(htmlTemplateVersion)\">")
