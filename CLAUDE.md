@@ -52,7 +52,7 @@ iPhone App 与 Widget 源码不在本仓库。`project.yml` 只生成 macOS App 
 
 ## 数据位置
 
-- 日报输出：`~/Documents/AI会话监控浮窗/日报/`（即本仓库的 `日报/` 目录）
+- 日报输出：`~/Documents/AI会话监控浮窗/日报/`（固定路径，与仓库目录无关；仓库已改名为 Bladecall，仓库内 `日报/` 只是改名前的旧副本）
 - 活动事件：`~/Library/Application Support/CompletionBell/activity.jsonl`
 - 诊断日志：`~/Library/Logs/CompletionBell/app.jsonl`
 
