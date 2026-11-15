@@ -1,0 +1,15 @@
+name: changelog
+
+# App 版本号改了却没写 CHANGELOG 条目 → 红。
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: CHANGELOG 必须包含当前 App 版本
+        run: scripts/check-changelog.sh
