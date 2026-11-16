@@ -1,0 +1,28 @@
+name: release-notes
+
+# 推送 vX.Y.Z 标签后，把 CHANGELOG.md 对应小节写成 GitHub Release 说明。
+# 安装包（dmg/pkg）仍在本机构建并手动上传；本流程只负责说明文字，不碰签名与密钥。
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  notes:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 生成说明并创建或更新 Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          scripts/release-notes.sh "$TAG" > "$RUNNER_TEMP/notes.md"
+          title="剑令 Bladecall ${TAG#v}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "$title" --notes-file "$RUNNER_TEMP/notes.md"
+          else
+            gh release create "$TAG" --title "$title" --notes-file "$RUNNER_TEMP/notes.md"
+          fi
